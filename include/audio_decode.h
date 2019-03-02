@@ -39,12 +39,14 @@ struct adecodec_s {
 
     void (*set_bitrate_mode)(ADecodec *,bitrate_mode_t );
     void (*set_bitrate)(ADecodec *,int );
+    void (*set_channel_mode)(ADecodec * ,int mode);
     /*attributes*/
     
     HANDLE_AACENCODER   handle_aacencoder;
     bitrate_mode_t      bitrate_mode;
     int                 bitrate;
     int                 per_sample_size ;
+    int                 channel_mode;
 
 };
 

@@ -48,7 +48,7 @@ static int __construct(ADecodec *codec,char *init_str)
     codec->handle_aacencoder = NULL;
     codec->bitrate           = BITRATE_DEFAULT;
     codec->bitrate_mode      = BITRATE_MODE_VBR;
-    
+    codec->channel_mode      = 2;
     return 0;
 }
 
@@ -84,6 +84,8 @@ static int __set(ADecodec *codec, char *attrib, void *value)
         codec->set_bitrate = value;
     } else if (strcmp(attrib, "set_bitrate_mode") == 0) {
         codec->set_bitrate_mode = value;
+    } else if (strcmp(attrib, "set_channel_mode") == 0) {
+        codec->set_channel_mode = value;
     }
     else {
         dbg_str(EV_DETAIL,"buffer set, not support %s setting",attrib);
@@ -109,11 +111,23 @@ static int __init_audio_encoder(ADecodec * self,int sample_rate,int channels)
     int bitrate = 24000;
     int aot     = 2;
     int vbr     = 1;
+    int mode    = self->channel_mode;
+
     CHANNEL_MODE channelmode = MODE_2;
     HANDLE_AACENCODER handle = NULL;
     AACENC_InfoStruct info   = {0};
-
-    dbg_str(DBG_WARNNING,"init encodec:%d %d",sample_rate,channels);
+    
+    switch (mode)
+    {
+        case 1:
+            mode = MODE_1;
+            break;
+        case 2:
+            mode = MODE_2;
+            break;
+        default:
+            break;
+    }
 
     if (aacEncOpen(&self->handle_aacencoder,0,channels) != AACENC_OK) {
         dbg_str(DBG_ERROR,"aacEncOpen failed");
@@ -133,7 +147,7 @@ static int __init_audio_encoder(ADecodec * self,int sample_rate,int channels)
         return -1;
     }
     //channel mode
-    if (aacEncoder_SetParam(handle,AACENC_CHANNELMODE,MODE_2) != AACENC_OK) {
+    if (aacEncoder_SetParam(handle,AACENC_CHANNELMODE,mode) != AACENC_OK) {
         dbg_str(DBG_ERROR,"aacEncoder_SetParam channel mode failed");
         return -1;
     }
@@ -180,6 +194,11 @@ static int __init_audio_encoder(ADecodec * self,int sample_rate,int channels)
     dbg_str(DBG_SUC, "audio frame_size:%d input channels:%d",info.frameLength,info.inputChannels);
     return 0; 
 }   
+
+static void __set_channel_mode(ADecodec * self,int mode)
+{
+    self-> channel_mode = mode;
+}
 
 static int __encode_aac(ADecodec * self,u_char * output_buf,int *output_size,u_char * input_buf,int input_size)
 {
@@ -246,7 +265,8 @@ static class_info_entry_t audio_codec_class_info[] = {
     [8 ] = {ENTRY_TYPE_FUNC_POINTER,"","encode_aac",__encode_aac,sizeof(void *)},
     [9 ] = {ENTRY_TYPE_FUNC_POINTER,"","close_aac",NULL,sizeof(void *)},
     [10 ] = {ENTRY_TYPE_FUNC_POINTER,"","init_audio_encoder",__init_audio_encoder,sizeof(void *)},
-    [11] = {ENTRY_TYPE_END},
+    [11 ] = {ENTRY_TYPE_FUNC_POINTER,"","set_channel_mode",__set_channel_mode,sizeof(void *)},
+    [12] = {ENTRY_TYPE_END},
 };
 REGISTER_CLASS("ADecodec",audio_codec_class_info);
 
@@ -350,10 +370,10 @@ static int test_encode_pcm_2_aac(TEST_ENTRY * entry)
 
     }
 
-
-
     fclose(in_raw_pcm);
     fclose(out_raw_aac);
+    object_destroy(codec);
+
     return 0;
 
 error:
