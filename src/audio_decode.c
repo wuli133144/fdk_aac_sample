@@ -48,7 +48,7 @@ static int __construct(ADecodec *codec,char *init_str)
     codec->handle_aacencoder = NULL;
     codec->bitrate           = BITRATE_DEFAULT;
     codec->bitrate_mode      = BITRATE_MODE_VBR;
-    codec->channel_mode      = 2;
+    codec->channel_mode      = MODE_2;
     return 0;
 }
 
@@ -111,7 +111,7 @@ static int __init_audio_encoder(ADecodec * self,int sample_rate,int channels)
     int bitrate = 24000;
     int aot     = 2;
     int vbr     = 1;
-    int mode    = self->channel_mode;
+    CHANNEL_MODE mode = self->channel_mode;
 
     CHANNEL_MODE channelmode = MODE_2;
     HANDLE_AACENCODER handle = NULL;
@@ -135,8 +135,7 @@ static int __init_audio_encoder(ADecodec * self,int sample_rate,int channels)
     }
 
     handle = self->handle_aacencoder;
-    dbg_str(DBG_SUC,"Current handle addr:%p",handle)
-    //aot
+
     if (aacEncoder_SetParam(handle,AACENC_AOT,aot) != AACENC_OK) {
         dbg_str(DBG_ERROR,"aacEncoder_SetParam AOT failed handle addr:%p aot:%d",handle,aot);
         return -1;

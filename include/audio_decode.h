@@ -46,7 +46,7 @@ struct adecodec_s {
     bitrate_mode_t      bitrate_mode;
     int                 bitrate;
     int                 per_sample_size ;
-    int                 channel_mode;
+    CHANNEL_MODE        channel_mode;
 
 };
 
