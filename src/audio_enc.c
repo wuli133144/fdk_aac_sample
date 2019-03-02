@@ -90,7 +90,7 @@ static int __set(ADecodec *codec, char *attrib, void *value)
     } else if (strcmp(attrib, "set_channel_mode") == 0) {
         codec->set_channel_mode = value;
     } else if (strcmp(attrib, "set_srb") == 0) {
-        codec->set_srb = value;
+        codec->set_sbr = value;
     } else if (strcmp(attrib, "set_aot") == 0) {
         codec->set_aot = value;
     }
@@ -215,7 +215,7 @@ static void __set_channel_mode(ADecodec * self,int mode)
 
 static void __set_sbr(ADecodec * self,int sbr)
 {
-    self-> sbr = srb;
+    self-> sbr = sbr;
 }
 
 static void __set_aot(ADecodec * self,int aot)

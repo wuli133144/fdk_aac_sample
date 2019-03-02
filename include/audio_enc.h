@@ -27,7 +27,7 @@ struct adecodec_s {
 
     /*interface*/
     HANDLE_AACENCODER (*get_handle)(ADecodec *);
-    
+
     int (*init_audio_encoder)(ADecodec *,int sample_rate,int channels);
 
     int (*encode_aac)(ADecodec *,
@@ -47,7 +47,7 @@ struct adecodec_s {
     void (*set_bitrate)(ADecodec *,int );
     void (*set_channel_mode)(ADecodec * ,int mode);
     void (*set_aot)(ADecodec * ,int aot);
-    void (*set_srb)(ADecodec * ,int sbr);
+    void (*set_sbr)(ADecodec * ,int sbr);
 
     /*attributes*/
     
