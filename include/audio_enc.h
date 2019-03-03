@@ -53,8 +53,8 @@ struct adecodec_s {
     
     HANDLE_AACENCODER   handle_aacencoder;
     bitrate_mode_t      bitrate_mode;
-    int                 bitrate;
-    int                 per_sample_size ;
+    UINT                bitrate;
+    UINT                per_sample_size ;
     UINT                channel_mode;
     UINT                aot;
     UINT                sbr;                  
