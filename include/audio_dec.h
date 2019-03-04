@@ -40,7 +40,9 @@ struct audio_dec_s {
     int (*decode_aac_frame)(Audio_Dec *,UCHAR *out_buf,int * got_frame,UCHAR *in,int len);
     void (*decode_aac_close)(Audio_Dec *);
     void (*decode_aac_flush)(Audio_Dec *);
-    
+    void (*init_stream_info)(Audio_Dec *);
+    void (*stream_info)(Audio_Dec *);
+
     /*attributes*/
     HANDLE_AACDECODER  handle_aacencoder;
     TRANSPORT_TYPE     transport_type;
@@ -48,6 +50,7 @@ struct audio_dec_s {
     CStreamInfo      * handle_stream_info;
     UINT               nlayers; 
     config_type_t      config_type;
+    UINT               per_pck_pcm_size;
 };
 
 

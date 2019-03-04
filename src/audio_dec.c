@@ -38,13 +38,15 @@
 
 #include "audio_dec.h"
 //#include <libobject/conf/configfile.h>
-
+#define FDK_AAC_BUFFER_SIZE_MAX               192000
 
 static int __construct(Audio_Dec *codec,char *init_str)
 {
-    allocator_t *allocator   = ((Obj *)codec)->allocator;
-    codec->conceal_method    = 2;
-    codec->handle_aacencoder = NULL;
+    allocator_t *allocator    = ((Obj *)codec)->allocator;
+    codec->conceal_method     = 2;
+    codec->handle_aacencoder  = NULL;
+    codec->handle_stream_info = NULL;
+    codec->per_pck_pcm_size   = 0;
     return 0;
 }
 
@@ -77,6 +79,8 @@ static int __set(Audio_Dec *codec, char *attrib, void *value)
         codec->decode_aac_close = value;
     } else if (strcmp(attrib, "decode_aac_flush") == 0) {
         codec->decode_aac_flush = value;
+    } else if (strcmp(attrib, "stream_info") == 0) {
+        codec->stream_info = value;
     } 
     else {
         dbg_str(EV_DETAIL,"buffer set, not support %s setting",attrib);
@@ -159,7 +163,18 @@ static int __init_decode_aac(Audio_Dec *codec,config_type_t ext,TRANSPORT_TYPE t
         dbg_str(DBG_ERROR,"aac decode aacDecoder_ConfigRaw failed");
         goto error;
     }
+    
+    // codec->handle_stream_info = aacDecoder_GetStreamInfo(codec->handle_aacencoder);
+    // if (codec->handle_stream_info == NULL) {
+    //     dbg_str(DBG_ERROR,"aac decode get streaminfo failed");
+    //     goto error;
+    // }
 
+    // if (codec->handle_stream_info->sampleRate <= 0) {
+    //     dbg_str(DBG_ERROR,"aac decode get streaminfo samplerate error");
+    //     goto error;
+    // }
+    
     err = aacDecoder_SetParam(codec->handle_aacencoder, 
                               AAC_CONCEAL_METHOD,
                               codec->conceal_method);
@@ -184,11 +199,6 @@ static int __init_decode_aac(Audio_Dec *codec,config_type_t ext,TRANSPORT_TYPE t
         goto error;
     }
 
-    codec->handle_stream_info = aacDecoder_GetStreamInfo(codec->handle_aacencoder);
-    if (codec->handle_stream_info == NULL) {
-        dbg_str(DBG_ERROR,"aac decode get streaminfo failed");
-        goto error;
-    }
     return 0;
 
 error:
@@ -223,8 +233,7 @@ static int __decode_aac(Audio_Dec*codec,UCHAR *out_buf,int * outbuf_size,UCHAR *
 
     err = aacDecoder_DecodeFrame(codec->handle_aacencoder,
                                  (INT_PCM*)out_buf,
-                                // (DECODER_BUFFSIZE*DECODER_MAX_CHANNELS),
-                                 2048,
+                                 (DECODER_BUFFSIZE*DECODER_MAX_CHANNELS),
                                  0);
 
     if (err == AAC_DEC_NOT_ENOUGH_BITS) { // 不够解一帧 loop
@@ -238,6 +247,12 @@ static int __decode_aac(Audio_Dec*codec,UCHAR *out_buf,int * outbuf_size,UCHAR *
         *outbuf_size = 0;
         ret = -3;
         dbg_str(DBG_ERROR,"decode frame error");
+        goto end;
+    }
+        
+    codec->handle_stream_info = aacDecoder_GetStreamInfo(codec->handle_aacencoder);
+    if (codec->handle_stream_info == NULL) {
+        dbg_str(DBG_ERROR,"aac decode get streaminfo failed");
         goto end;
     }
 
@@ -262,6 +277,18 @@ static int __decode_aac_frame(Audio_Dec *codec,UCHAR *out_buf,int * got_frame,UC
 
 }
 
+static void __stream_info(Audio_Dec * codec)
+{
+        if (codec->handle_stream_info) {
+            dbg_str(DBG_SUC," audio infomation:channel %d sample_rate %d per_frame_size %d aot %d birate %d",
+                            codec->handle_stream_info->numChannels,
+                            codec->handle_stream_info->aacSampleRate,
+                            codec->handle_stream_info->aacSamplesPerFrame,
+                            codec->handle_stream_info->aot,
+                            codec->handle_stream_info->bitRate);
+        }
+}
+
 static class_info_entry_t audio_decoder_class_info[] = {
     [0 ] = {ENTRY_TYPE_OBJ,"Stream","parent",NULL,sizeof(void *)},
     [1 ] = {ENTRY_TYPE_FUNC_POINTER,"","set",__set,sizeof(void *)},
@@ -272,7 +299,8 @@ static class_info_entry_t audio_decoder_class_info[] = {
     [6 ] = {ENTRY_TYPE_FUNC_POINTER,"","decode_aac_close",__decode_aac_close,sizeof(void *)},
     [7 ] = {ENTRY_TYPE_FUNC_POINTER,"","decode_aac_frame",__decode_aac_frame,sizeof(void *)},
     [8 ] = {ENTRY_TYPE_FUNC_POINTER,"","decode_aac",__decode_aac,sizeof(void *)},
-    [9 ] = {ENTRY_TYPE_END},
+    [9 ] = {ENTRY_TYPE_FUNC_POINTER,"","stream_info",__stream_info,sizeof(void *)},
+    [10 ] = {ENTRY_TYPE_END},
 };
 REGISTER_CLASS("Audio_Dec",audio_decoder_class_info);
 
@@ -320,21 +348,21 @@ static int test_aac_dec(TEST_ENTRY *entry)
     }
 
     dbg_str(DBG_SUC,"init_audio_decode success");
-    UCHAR * output = malloc(sizeof(UCHAR)*4096);
-    memset(output,0,4096);
+    UCHAR * output = malloc(sizeof(UCHAR)*409600);
+    memset(output,0,409600);
 
-    UCHAR buffer[1024];
-    memset(buffer,0,1024);
+    UCHAR buffer[10240];
+    memset(buffer,0,10240);
 
     FILE * fp_in = fopen("tmp_out.aac","r");
     FILE * fp_out = fopen("tmp_out.pcm","wb+");
     p = output;
 
     while (!feof(fp_in)) {
-        memset(buffer,0,1024);
-        read_count = fread(buffer,1,1024,fp_in);
+        memset(buffer,0,4096);
+        read_count = fread(buffer,4096,1,fp_in);
 
-        if (ret < 1024) {
+        if (read_count < 4096) {
             if (ferror(fp_in)) {
                 goto error;
             }
@@ -351,13 +379,14 @@ static int test_aac_dec(TEST_ENTRY *entry)
         frame_size += read_count - dec_count;
 
         if (got_frame == 1) { //get complete a frame
-            fwrite(output,1,frame_size,fp_out);
+            fwrite(output,frame_size,1,fp_out);
             dbg_str(DBG_SUC,"decode frame success size:%d",frame_size);
             p         = output;
             frame_size = 0;
-            memset(output,0,4096);
+            memset(output,0,409600);
         }
-        
+
+        dec->stream_info(dec);
         dbg_str(DBG_SUC,"while loop %d  read_count:%d" ,index++,read_count);
 
     }
@@ -379,3 +408,52 @@ error:
     return -1;
 }
 REGISTER_STANDALONE_TEST_FUNC(test_aac_dec);
+
+static int test_fdk_aac_stream_info(TEST_ENTRY * entry)
+{
+
+    #if 1  
+    int ret                 = 0;
+    int got_frame           = 0;
+    int read_count          = 0;
+    int index               = 0;
+    int valid               = 0;
+    int dec_count           = 0;
+    UCHAR * p               = NULL;
+    int frame_size          = 0;
+
+    allocator_t * allocator = allocator_get_default_alloc();
+    Audio_Dec * dec         = OBJECT_NEW(allocator,Audio_Dec,NULL);
+
+    ret = dec->init_decode_aac(dec,2,TT_MP4_RAW);
+    if (ret < 0) {
+        dbg_str(DBG_ERROR,"init_audio_decode failed");
+        goto error;
+    }
+
+    dec->stream_info(dec);
+    dec->decode_aac_close(dec);
+
+    return 1;
+error:
+    object_destroy(dec);
+    return 0;
+    #endif 
+
+    HANDLE_AACDECODER handle = aacDecoder_Open(TT_MP4_ADTS,1);
+    CStreamInfo *info        = aacDecoder_GetStreamInfo(handle);
+    
+    
+
+    dbg_str(DBG_SUC," audio infomation:channel %d sample_rate %d per_frame_size %d aot %d birate %d",
+                            info->numChannels,
+                            info->aacSampleRate,
+                            info->aacSamplesPerFrame,
+                            info->aot,
+                            info->bitRate);
+
+    // aacDecoder_Close(handle);
+    return 1;
+
+}
+REGISTER_STANDALONE_TEST_FUNC(test_fdk_aac_stream_info);
